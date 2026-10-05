@@ -37,6 +37,9 @@ final class Config
     /** Giá trị mặc định của wp-config mới tạo – không phải secret thật. */
     private const PLACEHOLDER_SALT = 'put your unique phrase here';
 
+    /** Các nhóm constant mà wp_salt() dùng để phát hiện giá trị trùng nhau. */
+    private const SALT_CONSTANT_GROUPS = ['AUTH', 'SECURE_AUTH', 'LOGGED_IN', 'NONCE', 'SECRET'];
+
     private string $configPath;
 
     /** @var array<string, string> */
@@ -278,55 +281,56 @@ final class Config
             return false;
         }
 
-        if ($this->salt($scheme) === '') {
-            return false;
-        }
-
         $prefix = strtoupper($scheme);
 
-        return ! $this->isPlaceholder($prefix . '_KEY')
-            && ! $this->isPlaceholder($prefix . '_SALT');
+        return $this->hasRealValue($prefix . '_KEY')
+            && $this->hasRealValue($prefix . '_SALT');
     }
 
     /**
-     * Một giá trị bị coi là vô dùng khi rỗng, là placeholder, hoặc trùng với
-     * giá trị của constant salt khác.
+     * Constant salt/key này có dùng được như một secret thật không.
+     *
+     * Theo wp_salt(): giá trị bị loại nếu rỗng, còn placeholder mặc định, hoặc
+     * bị trùng với một constant salt khác (hai dòng đều để placeholder là
+     * trường hợp rất hay gặp).
+     *
+     * @param string $constant Ví dụ LOGGED_IN_KEY, SECRET_SALT.
      */
-    private function isPlaceholder(string $constant): bool
+    public function hasRealValue(string $constant): bool
     {
         $value = $this->constants[$constant] ?? '';
 
         if ($value === '' || $value === self::PLACEHOLDER_SALT) {
-            return true;
+            return false;
         }
 
-        foreach (['AUTH', 'SECURE_AUTH', 'LOGGED_IN', 'NONCE', 'SECRET'] as $first) {
+        return $this->countConstantsWithValue($value) < 2;
+    }
+
+    /**
+     * Có bao nhiêu constant salt/key đang dùng chung một giá trị.
+     */
+    private function countConstantsWithValue(string $value): int
+    {
+        $count = 0;
+
+        foreach (self::SALT_CONSTANT_GROUPS as $first) {
             foreach (['KEY', 'SALT'] as $second) {
-                $other = $first . '_' . $second;
-
-                // Đếm số constant đang giữ cùng giá trị này.
-                $matches = 0;
-                foreach (['AUTH', 'SECURE_AUTH', 'LOGGED_IN', 'NONCE', 'SECRET'] as $a) {
-                    foreach (['KEY', 'SALT'] as $b) {
-                        if (($this->constants[$a . '_' . $b] ?? '') === $value && $value !== '') {
-                            $matches++;
-                        }
-                    }
+                if (($this->constants[$first . '_' . $second] ?? '') === $value) {
+                    $count++;
                 }
-
-                if ($matches > 1) {
-                    return true;
-                }
-
-                unset($other);
             }
         }
 
-        return false;
+        return $count;
     }
 
     /**
      * Site URL dùng để tính COOKIEHASH.
+     *
+     * Giá trị trả về giữ nguyên như khai trong wp-config, không bỏ dấu '/'
+     * cuối: default-constants.php của WordPress dùng đúng giá trị option
+     * 'siteurl' để tính md5, nên cắt bớt ký tự sẽ ra COOKIEHASH khác.
      *
      * @return string Rỗng nếu không khai trong wp-config – khi đó Auth đọc
      *               từ option 'siteurl'.
@@ -336,7 +340,7 @@ final class Config
         foreach (['WP_HOME', 'WP_SITEURL'] as $constant) {
             $value = $this->constants[$constant] ?? '';
             if ($value !== '') {
-                return rtrim($value, '/');
+                return $value;
             }
         }
 
@@ -352,7 +356,7 @@ final class Config
     {
         $siteUrl = $this->siteUrl();
         if ($siteUrl === '' && $fallbackSiteUrl !== null) {
-            $siteUrl = rtrim($fallbackSiteUrl, '/');
+            $siteUrl = $fallbackSiteUrl;
         }
 
         return md5($siteUrl);

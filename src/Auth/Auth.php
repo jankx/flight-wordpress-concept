@@ -252,15 +252,38 @@ final class Auth
             return $config->salt($scheme);
         }
 
-        $connection = Connection::instance();
-        $key        = self::readOption($config->table($scheme . '_key'));
-        $salt       = self::readOption($config->table($scheme . '_salt'));
+        $key  = '';
+        $salt = '';
+
+        // wp_salt(): riêng scheme 'auth' lấy SECRET_KEY / SECRET_SALT làm giá
+        // trị dự phòng trước khi đọc option.
+        if ($scheme === 'auth') {
+            if ($config->hasRealValue('SECRET_KEY')) {
+                $key = $config->get('SECRET_KEY');
+            }
+            if ($config->hasRealValue('SECRET_SALT')) {
+                $salt = $config->get('SECRET_SALT');
+            }
+        }
+
+        if ($key === '') {
+            $key = self::readOption($scheme . '_key');
+        }
+
+        if ($salt === '') {
+            $salt = self::readOption($scheme . '_salt');
+        }
 
         return $key . $salt;
     }
 
     /**
      * Đọc một option; trả chuỗi rỗng nếu không có.
+     *
+     * Tên KHÔNG gắn table prefix: wp_salt() gọi get_site_option(), và trên
+     * single-site get_network_option() rơi về get_option() nên option salt
+     * được lưu không prefix ('logged_in_key', không phải 'wp_logged_in_key').
+     * Đọc có prefix sẽ luôn trả rỗng và mọi phiên đăng nhập bị từ chối.
      */
     private static function readOption(string $name): string
     {
@@ -421,7 +444,7 @@ final class Auth
             [':name' => 'siteurl']
         );
 
-        return is_string($stored) && $stored !== '' ? md5(rtrim($stored, '/')) : '';
+        return is_string($stored) && $stored !== '' ? md5($stored) : '';
     }
 
     private static function isSsl(): bool
