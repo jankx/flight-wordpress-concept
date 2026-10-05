@@ -304,6 +304,53 @@ final class Auth
     }
 
     // ── User + capabilities ───────────────────────────────────────────────────
+
+    /**
+     * Ép user hiện tại cho request này, bỏ qua cookie.
+     *
+     * Cần cho wp_set_current_user() – cron, CLI và test đều dùng để chạy code
+     * với user khác mà không phải dựng cookie giả.
+     */
+    public static function forceLogin(int $id): object|false
+    {
+        $config = Config::load(dirname(__DIR__, 2));
+
+        if ($id <= 0) {
+            self::clear();
+
+            return false;
+        }
+
+        $row = Connection::instance()->fetchOne(
+            sprintf(
+                'SELECT ID, user_login, user_email, user_pass, user_nicename, display_name
+                 FROM %s WHERE ID = :id LIMIT 1',
+                $config->table('users')
+            ),
+            [':id' => $id]
+        );
+
+        if ($row === null) {
+            self::clear();
+
+            return false;
+        }
+
+        self::$user         = (object) $row;
+        self::$capabilities = self::loadCapabilities(self::$user, $config);
+
+        return self::$user;
+    }
+
+    /**
+     * Bỏ user hiện tại, quay về trạng thái khách.
+     */
+    public static function clear(): void
+    {
+        self::$user         = null;
+        self::$capabilities = [];
+    }
+
     private static function findUserByLogin(string $login): ?object
     {
         $connection = Connection::instance();

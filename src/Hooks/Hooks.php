@@ -94,7 +94,7 @@ final class Hooks
     {
         self::$current[] = $tag;
 
-        foreach (self::callbacksFor($tag) as $entry) {
+        foreach (self::orderedEntries($tag) as $entry) {
             self::invoke($entry, $args);
         }
 
@@ -116,7 +116,7 @@ final class Hooks
 
         self::$current[] = $tag;
 
-        foreach (self::callbacksFor($tag) as $entry) {
+        foreach (self::orderedEntries($tag) as $entry) {
             $args[0] = self::invoke($entry, $args);
         }
 
@@ -175,6 +175,35 @@ final class Hooks
     private static function callbacksFor(string $tag): array
     {
         return self::$hooks[$tag] ?? [];
+    }
+
+    /**
+     * Danh sách callback của một tag, đã san phẳng và đúng thứ tự chạy.
+     *
+     * Registry lưu hai tầng: [tag][priority][id] => entry. Người gọi cần một
+     * danh sách phẳng theo thứ tự WordPress chạy: priority tăng dần, cùng
+     * priority thì giữ thứ tự đăng ký.
+     *
+     * @return array<int, array{callback: callable, args: int}>
+     */
+    private static function orderedEntries(string $tag): array
+    {
+        if (! isset(self::$hooks[$tag])) {
+            return [];
+        }
+
+        $byPriority = self::$hooks[$tag];
+        ksort($byPriority, SORT_NUMERIC);
+
+        $entries = [];
+
+        foreach ($byPriority as $callbacks) {
+            foreach ($callbacks as $entry) {
+                $entries[] = $entry;
+            }
+        }
+
+        return $entries;
     }
 
     /**

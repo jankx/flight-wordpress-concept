@@ -47,6 +47,13 @@ final class Bootstrap
         // khi nạp extension vì chúng dùng ở khai báo class, ví dụ
         // `const CART_TTL = 30 * DAY_IN_SECONDS;`.
         Constants::defineTime();
+        Constants::definePaths();
+
+        // 1c. Global $wpdb. Extension đọc nó bằng `global $wpdb` ngay trong
+        //     register_hooks(), thiếu là "Attempt to read property on null".
+        //     Phải có trước khi nạp extension. Lỗi kết nối không nên giết
+        //     request: endpoint nào không cần DB vẫn phải trả lời được.
+        self::bootWpdb();
 
         // 2. Xác thực cookie trước, để hook 'init' của extension thấy đúng
         //    người dùng hiện tại.
@@ -91,9 +98,31 @@ final class Bootstrap
 
         Config::reset();
         Auth::reset();
+        Db\Wpdb::reset();
         Cache\Options::reset();
         Loader::reset();
         Hooks::reset();
+    }
+
+    /**
+     * Dựng $wpdb và cài vào scope global.
+     *
+     * Không có $wpdb thì phần lớn extension chết ngay ở hook, nên coi lỗi ở
+     * đây là không chặn được: cứ để $GLOBALS['wpdb'] = null, endpoint không
+     * cần DB vẫn chạy.
+     */
+    private static function bootWpdb(): void
+    {
+        $GLOBALS['wpdb'] = null;
+
+        try {
+            $GLOBALS['wpdb'] = new Db\Wpdb(
+                Db\Connection::instance(),
+                Config::load(dirname(__DIR__))
+            );
+        } catch (\Throwable $exception) {
+            error_log('[bootstrap] không khởi tạo được $wpdb: ' . $exception->getMessage());
+        }
     }
 
     /**

@@ -54,4 +54,32 @@ final class Manifest
 
         return rtrim($this->dir, '/') . '/' . ltrim($file, '/');
     }
+
+    /**
+     * Tên class bootstrap của extension, theo manifest key 'caller'.
+     */
+    public function callerClass(): string
+    {
+        return (string) ($this->data['caller']['class'] ?? '');
+    }
+
+    /**
+     * Extension có được bật không.
+     *
+     * `enabled` là trạng thái toggle của người dùng và phải thắng;
+     * `auto_activate` là ý định boot mặc định. Thiếu cả hai thì coi như tắt,
+     * đúng như ThemeExtensionManager của theme.
+     */
+    public function isEnabled(): bool
+    {
+        if (isset($this->data['enabled'])) {
+            return (bool) $this->data['enabled'];
+        }
+
+        if (isset($this->data['auto_activate'])) {
+            return (bool) $this->data['auto_activate'];
+        }
+
+        return false;
+    }
 }

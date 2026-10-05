@@ -32,6 +32,33 @@ final class Constants
     }
 
     /**
+     * Hằng số đường dẫn, mô phỏng wp-load.php.
+     *
+     * Rất nhiều file của theme (và của extension) khai ở đầu:
+     *
+     *     if (! defined('ABSPATH')) { exit('Cheating huh?'); }
+     *
+     * Đó là cách chống truy cập trực tiếp file PHP, không phải kiểm tra nào
+     * về runtime – nhưng nếu thiếu ABSPATH thì các file đó tự exit và request
+     * chết ngay giữa chừng. Khai giá trị đúng vị trí là hợp lệ và giữ nguyên
+     * cơ chế bảo vệ đó.
+     */
+    public static function definePaths(): void
+    {
+        // wp-content nằm cạnh themes/; suy ra từ vị trí package đang chạy
+        // (…/wp-content/themes/<theme>/vendor/jankx/flight-wordpress-concept).
+        $packageDir = dirname(__DIR__);
+        $themeDir   = dirname($packageDir, 4);
+        $contentDir = dirname($themeDir, 2);
+
+        self::defineOnce('ABSPATH', $themeDir . '/');
+        self::defineOnce('WPINC', 'wp-includes');
+        self::defineOnce('WP_CONTENT_DIR', $contentDir);
+        self::defineOnce('WP_PLUGIN_DIR', $contentDir . '/plugins');
+        self::defineOnce('WPMU_PLUGIN_DIR', $contentDir . '/mu-plugins');
+    }
+
+    /**
      * Hằng số cookie, lấy từ site URL.
      *
      * wp_cookie_constants() khai COOKIEPATH theo path của site (site nằm trong
