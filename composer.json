@@ -1,10 +1,10 @@
 {
-    "name": "jankx/fatfree-wordpress-concept",
+    "name": "jankx/flight-wordpress-concept",
     "type": "library",
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "Jankx\\FatfreeWordpressConcept\\": "src/"
+            "Jankx\\Flight\\WordpressConcept\\": "src/"
         }
     },
     "authors": [
