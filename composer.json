@@ -14,5 +14,7 @@
         }
     ],
     "minimum-stability": "dev",
-    "require": {}
+    "require": {
+        "flightphp/core": "^3.19"
+    }
 }
