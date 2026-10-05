@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Jankx\Flight\WordpressConcept\Auth;
 
+use Jankx\Flight\WordpressConcept\Cache;
 use Jankx\Flight\WordpressConcept\Config;
 use Jankx\Flight\WordpressConcept\Db\Connection;
 
@@ -54,6 +55,16 @@ final class Auth
         self::$booted = true;
 
         $config = Config::load(dirname(__DIR__, 2));
+
+        // Gom các option auth cần đọc vào một câu SELECT thay vì mỗi cái một
+        // round-trip: siteurl (COOKIEHASH) + 4 cặp key/salt.
+        Cache\Options::prime([
+            'siteurl',
+            'auth_key', 'auth_salt',
+            'secure_auth_key', 'secure_auth_salt',
+            'logged_in_key', 'logged_in_salt',
+            'site_admins',
+        ]);
 
         $user = self::resolveFromCookies($config);
         if ($user === null) {
@@ -287,16 +298,7 @@ final class Auth
      */
     private static function readOption(string $name): string
     {
-        $connection = Connection::instance();
-        $config     = Config::load(dirname(__DIR__, 2));
-
-        $value = $connection->fetchValue(
-            sprintf(
-                'SELECT option_value FROM %s WHERE option_name = :name LIMIT 1',
-                $config->table('options')
-            ),
-            [':name' => $name]
-        );
+        $value = Cache\Options::get($name, '');
 
         return is_string($value) ? $value : '';
     }
@@ -326,16 +328,8 @@ final class Auth
      */
     private static function loadCapabilities(object $user, Config $config): array
     {
-        $connection = Connection::instance();
-
         $roles = self::unserializeOption(
-            $connection->fetchValue(
-                sprintf(
-                    'SELECT option_value FROM %s WHERE option_name = :name LIMIT 1',
-                    $config->table('options')
-                ),
-                [':name' => $config->table('user_roles')]
-            )
+            Cache\Options::get($config->table('user_roles'), '')
         );
 
         $userRoles = self::getUserMeta((int) $user->ID, $config->table('capabilities'), $config);
@@ -352,15 +346,7 @@ final class Auth
         }
 
         // Super admin của site mạng đăng ký trong option 'site_admins'.
-        $superAdmins = self::unserializeOption(
-            $connection->fetchValue(
-                sprintf(
-                    'SELECT option_value FROM %s WHERE option_name = :name LIMIT 1',
-                    $config->table('options')
-                ),
-                [':name' => 'site_admins']
-            )
-        );
+        $superAdmins = self::unserializeOption(Cache\Options::get('site_admins', ''));
 
         if (is_array($superAdmins) && in_array((int) $user->ID, array_map('intval', $superAdmins), true)) {
             foreach ($roles as $role) {
@@ -434,15 +420,7 @@ final class Auth
             return md5($siteUrl);
         }
 
-        $connection = Connection::instance();
-
-        $stored = $connection->fetchValue(
-            sprintf(
-                'SELECT option_value FROM %s WHERE option_name = :name LIMIT 1',
-                $config->table('options')
-            ),
-            [':name' => 'siteurl']
-        );
+        $stored = Cache\Options::get('siteurl', '');
 
         return is_string($stored) && $stored !== '' ? md5($stored) : '';
     }

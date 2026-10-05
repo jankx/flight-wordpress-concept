@@ -43,9 +43,18 @@ final class Bootstrap
         // 1. Cấu hình: đọc tĩnh wp-config.php, không nạp WordPress.
         Config::load(dirname(__DIR__));
 
+        // 1b. Constant của WordPress (DAY_IN_SECONDS, COOKIEPATH…). Cần trước
+        // khi nạp extension vì chúng dùng ở khai báo class, ví dụ
+        // `const CART_TTL = 30 * DAY_IN_SECONDS;`.
+        Constants::defineTime();
+
         // 2. Xác thực cookie trước, để hook 'init' của extension thấy đúng
         //    người dùng hiện tại.
         Auth::boot();
+
+        // 2b. COOKIEPATH phụ thuộc site URL trong options, nên khai sau khi
+        //     đã có connection.
+        Constants::defineCookies();
 
         // 3. Nạp extension khai báo context 'ajax' rồi kích vòng đời.
         $dirs      = array_values(array_unique(array_merge([$themeDir], $extraDirs, self::childThemeDirs($themeDir))));
@@ -82,6 +91,7 @@ final class Bootstrap
 
         Config::reset();
         Auth::reset();
+        Cache\Options::reset();
         Loader::reset();
         Hooks::reset();
     }

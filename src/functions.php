@@ -17,6 +17,7 @@
 declare(strict_types=1);
 
 use Jankx\Flight\WordpressConcept\Auth\Auth;
+use Jankx\Flight\WordpressConcept\Cache;
 use Jankx\Flight\WordpressConcept\Hooks\Hooks;
 
 // ── Hooks ────────────────────────────────────────────────────────────────────
@@ -286,5 +287,84 @@ if (! function_exists('esc_attr__')) {
     function esc_attr__(string $text, string $domain = 'default'): string
     {
         return esc_attr($text);
+    }
+}
+
+// ── Options / Transient (cache trên bảng wp_options) ─────────────────────────
+
+if (! function_exists('get_option')) {
+    function get_option(string $option, mixed $default = false): mixed
+    {
+        return Cache\Options::get($option, $default);
+    }
+}
+
+if (! function_exists('update_option')) {
+    function update_option(string $option, mixed $value): bool
+    {
+        return Cache\Options::update($option, $value);
+    }
+}
+
+if (! function_exists('add_option')) {
+    function add_option(string $option, mixed $value = ''): bool
+    {
+        return Cache\Options::add($option, $value);
+    }
+}
+
+if (! function_exists('delete_option')) {
+    function delete_option(string $option): bool
+    {
+        return Cache\Options::delete($option);
+    }
+}
+
+if (! function_exists('get_site_option')) {
+    /**
+     * Trên single-site get_network_option() của core rơi về get_option() nên
+     * tên option không có prefix. Xem Auth::readOption().
+     */
+    function get_site_option(string $option, mixed $default = false): mixed
+    {
+        return Cache\Options::get($option, $default);
+    }
+}
+
+if (! function_exists('get_transient')) {
+    function get_transient(string $transient): mixed
+    {
+        return Cache\Transient::get($transient);
+    }
+}
+
+if (! function_exists('set_transient')) {
+    function set_transient(string $transient, mixed $value, int $expiration = 0): bool
+    {
+        return Cache\Transient::set($transient, $value, $expiration);
+    }
+}
+
+if (! function_exists('delete_transient')) {
+    function delete_transient(string $transient): bool
+    {
+        return Cache\Transient::delete($transient);
+    }
+}
+
+// ── Môi trường ───────────────────────────────────────────────────────────────
+
+if (! function_exists('is_ssl')) {
+    function is_ssl(): bool
+    {
+        if (! empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off') {
+            return true;
+        }
+
+        if (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') {
+            return true;
+        }
+
+        return (int) ($_SERVER['SERVER_PORT'] ?? 0) === 443;
     }
 }
