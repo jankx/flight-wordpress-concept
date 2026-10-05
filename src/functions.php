@@ -390,11 +390,22 @@ if (! function_exists('is_wp_error')) {
 // ── Bài viết ──────────────────────────────────────────────────────────────────
 
 if (! function_exists('get_post')) {
+    /**
+     * Lấy bài viết theo ID hoặc slug.
+     *
+     * QUAN TRỌNG: khi không tìm thấy, hàm trả null – đúng như core – chứ
+     * không phải WP_Error. Extension viết rất nhiều `if (!$post) { return
+     * null; }`; WP_Error là object truthy nên lọt qua nhánh đó rồi đọc tiếp
+     * ->post_type trên chính đối tượng lỗi. WP_Error chỉ dành cho các API
+     * khác (wp_insert_post, wp_insert_term…).
+     *
+     * @return WP_Post|array|null
+     */
     function get_post(int|string|object|null $post = null, string $output = 'OBJECT'): mixed
     {
         if ($post === null) {
             // Core dùng $post toàn cục khi không truyền; ở đây không có.
-            return new WPError('empty_query', 'Không có bài viết nào được chỉ định.');
+            return null;
         }
 
         // Đã là đối tượng bài viết rồi (WP_Post, hoặc stdClass do chính hàm này
@@ -405,11 +416,11 @@ if (! function_exists('get_post')) {
 
         $found = Db\Posts::get($post);
 
-        if ($output === 'ARRAY_A' || $output === 'ARRAY_N') {
-            if ($found instanceof WPError) {
-                return $found;
-            }
+        if ($found instanceof WPError) {
+            return null;
+        }
 
+        if ($output === 'ARRAY_A' || $output === 'ARRAY_N') {
             $array = (array) $found;
 
             return $output === 'ARRAY_A' ? $array : array_values($array);

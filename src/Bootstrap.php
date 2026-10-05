@@ -113,6 +113,12 @@ final class Bootstrap
      */
     private static function bootWpdb(): void
     {
+        // Dispatch Fast-AJAX bên trong WordPress (template_redirect) thì đã có
+        // $wpdb thật của core: giữ nguyên, không đè bằng shim của package.
+        if (isset($GLOBALS['wpdb']) && is_object($GLOBALS['wpdb'])) {
+            return;
+        }
+
         $GLOBALS['wpdb'] = null;
 
         try {

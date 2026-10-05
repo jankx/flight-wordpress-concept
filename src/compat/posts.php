@@ -21,18 +21,6 @@ use Jankx\Flight\WordpressConcept\WPError;
 
 // ── Post ─────────────────────────────────────────────────────────────────────
 
-if (! function_exists('get_post')) {
-    function get_post(int|string|null $post = null, string $output = 'OBJECT', string $filter = 'raw'): mixed
-    {
-        // Không có ID nào trong global $post (Ajax không chạy vòng lặp chính).
-        if ($post === null || $post === 0 || $post === '') {
-            return null;
-        }
-
-        return Posts::get($post);
-    }
-}
-
 if (! function_exists('get_posts')) {
     /**
      * @param array<string, mixed> $args
