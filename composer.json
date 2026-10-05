@@ -2,10 +2,14 @@
     "name": "jankx/flight-wordpress-concept",
     "type": "library",
     "license": "MIT",
+    "version": "dev-master",
     "autoload": {
         "psr-4": {
             "Jankx\\Flight\\WordpressConcept\\": "src/"
-        }
+        },
+        "files": [
+            "src/functions.php"
+        ]
     },
     "authors": [
         {
@@ -15,6 +19,7 @@
     ],
     "minimum-stability": "dev",
     "require": {
-        "flightphp/core": "^3.19"
+        "flightphp/core": "^3.19",
+        "atlas/orm": "^3.1"
     }
 }
