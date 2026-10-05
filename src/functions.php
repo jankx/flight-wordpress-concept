@@ -17,8 +17,12 @@
 declare(strict_types=1);
 
 use Jankx\Flight\WordpressConcept\Auth\Auth;
+use Jankx\Flight\WordpressConcept\Db;
+use Jankx\Flight\WordpressConcept\Http;
 use Jankx\Flight\WordpressConcept\Cache;
 use Jankx\Flight\WordpressConcept\Hooks\Hooks;
+use Jankx\Flight\WordpressConcept\Text;
+use Jankx\Flight\WordpressConcept\WPError;
 
 // ── Hooks ────────────────────────────────────────────────────────────────────
 
@@ -368,3 +372,310 @@ if (! function_exists('is_ssl')) {
         return (int) ($_SERVER['SERVER_PORT'] ?? 0) === 443;
     }
 }
+
+// ── WP_Error ──────────────────────────────────────────────────────────────────
+
+if (! function_exists('is_wp_error')) {
+    function is_wp_error(mixed $thing): bool
+    {
+        return $thing instanceof WPError;
+    }
+}
+
+// ── Bài viết ──────────────────────────────────────────────────────────────────
+
+if (! function_exists('get_post')) {
+    function get_post(int|string|object|null $post = null, string $output = 'OBJECT'): mixed
+    {
+        if ($post === null) {
+            // Core dùng $post toàn cục khi không truyền; ở đây không có.
+            return new WPError('empty_query', 'Không có bài viết nào được chỉ định.');
+        }
+
+        // Đã là đối tượng bài viết rồi (WP_Post, hoặc stdClass do chính hàm này
+        // trả về trước đó) – không cần và lại query DB.
+        if (is_object($post)) {
+            return $post;
+        }
+
+        $found = Db\Posts::get($post);
+
+        if ($output === 'ARRAY_A' || $output === 'ARRAY_N') {
+            if ($found instanceof WPError) {
+                return $found;
+            }
+
+            $array = (array) $found;
+
+            return $output === 'ARRAY_A' ? $array : array_values($array);
+        }
+
+        return $found;
+    }
+}
+
+if (! function_exists('get_post_type')) {
+    function get_post_type(int|string|object|null $post = null): string|false
+    {
+        if (is_object($post)) {
+            return isset($post->post_type) ? (string) $post->post_type : false;
+        }
+
+        if (is_string($post) && ! ctype_digit($post)) {
+            $found = Db\Posts::get($post);
+
+            return $found instanceof WPError ? false : (string) $found->post_type;
+        }
+
+        $id = $post === null ? 0 : (int) $post;
+
+        return Db\Posts::typeOf($id);
+    }
+}
+
+if (! function_exists('get_post_field')) {
+    function get_post_field(string $field, int|object|null $post = null, string $context = 'display'): string
+    {
+        $id = is_object($post) ? (int) $post->ID : (int) $post;
+
+        return (string) Db\Posts::field($id, $field, '');
+    }
+}
+
+if (! function_exists('get_the_title')) {
+    function get_the_title(int|object|null $post = null): string
+    {
+        if (is_object($post)) {
+            return isset($post->post_title)
+                ? html_entity_decode((string) $post->post_title, ENT_QUOTES, 'UTF-8')
+                : '';
+        }
+
+        return Db\Posts::title((int) $post);
+    }
+}
+
+if (! function_exists('get_permalink')) {
+    function get_permalink(int|object|null $post = null): string|false
+    {
+        $id = is_object($post) ? (int) $post->ID : (int) $post;
+
+        if ($id <= 0) {
+            return false;
+        }
+
+        $slug = (string) Db\Posts::field($id, 'post_name', '');
+
+        return $slug === '' ? false : home_url('/' . $slug . '/');
+    }
+}
+
+// ── Meta ──────────────────────────────────────────────────────────────────────
+
+if (! function_exists('get_user_meta')) {
+    function get_user_meta(int $userId, string $key = '', bool $single = false): mixed
+    {
+        return Db\Meta::get('user', $userId, $key, $single);
+    }
+}
+
+if (! function_exists('update_user_meta')) {
+    function update_user_meta(int $userId, string $key, mixed $value, mixed $prevValue = ''): bool
+    {
+        return Db\Meta::update('user', $userId, $key, $value);
+    }
+}
+
+if (! function_exists('add_user_meta')) {
+    function add_user_meta(int $userId, string $key, mixed $value, bool $unique = false): bool
+    {
+        return Db\Meta::add('user', $userId, $key, $value);
+    }
+}
+
+if (! function_exists('delete_user_meta')) {
+    function delete_user_meta(int $userId, string $key, mixed $value = ''): bool
+    {
+        return Db\Meta::delete('user', $userId, $key);
+    }
+}
+
+if (! function_exists('get_post_meta')) {
+    function get_post_meta(int $postId, string $key = '', bool $single = false): mixed
+    {
+        return Db\Meta::get('post', $postId, $key, $single);
+    }
+}
+
+if (! function_exists('update_post_meta')) {
+    function update_post_meta(int $postId, string $key, mixed $value, mixed $prevValue = ''): bool
+    {
+        return Db\Meta::update('post', $postId, $key, $value);
+    }
+}
+
+if (! function_exists('add_post_meta')) {
+    function add_post_meta(int $postId, string $key, mixed $value, bool $unique = false): bool
+    {
+        return Db\Meta::add('post', $postId, $key, $value);
+    }
+}
+
+if (! function_exists('delete_post_meta')) {
+    function delete_post_meta(int $postId, string $key, mixed $value = ''): bool
+    {
+        return Db\Meta::delete('post', $postId, $key);
+    }
+}
+
+if (! function_exists('get_term_meta')) {
+    function get_term_meta(int $termId, string $key = '', bool $single = false): mixed
+    {
+        return Db\Meta::get('term', $termId, $key, $single);
+    }
+}
+
+if (! function_exists('update_term_meta')) {
+    function update_term_meta(int $termId, string $key, mixed $value, mixed $prevValue = ''): bool
+    {
+        return Db\Meta::update('term', $termId, $key, $value);
+    }
+}
+
+// ── Object cache ──────────────────────────────────────────────────────────────
+
+if (! function_exists('wp_cache_get')) {
+    function wp_cache_get(string $key, string $group = '', bool $force = false, mixed &$found = null): mixed
+    {
+        return Cache\ObjectCache::get($key, $group === '' ? 'default' : $group, $force);
+    }
+}
+
+if (! function_exists('wp_cache_set')) {
+    function wp_cache_set(string $key, mixed $value, string $group = '', int $expire = 0): bool
+    {
+        return Cache\ObjectCache::set($key, $value, $group === '' ? 'default' : $group, $expire);
+    }
+}
+
+if (! function_exists('wp_cache_add')) {
+    function wp_cache_add(string $key, mixed $value, string $group = '', int $expire = 0): bool
+    {
+        return Cache\ObjectCache::add($key, $value, $group === '' ? 'default' : $group, $expire);
+    }
+}
+
+if (! function_exists('wp_cache_delete')) {
+    function wp_cache_delete(string $key, string $group = ''): bool
+    {
+        return Cache\ObjectCache::delete($key, $group === '' ? 'default' : $group);
+    }
+}
+
+if (! function_exists('wp_cache_delete_group')) {
+    function wp_cache_delete_group(string $group): bool
+    {
+        return Cache\ObjectCache::deleteGroup($group);
+    }
+}
+
+if (! function_exists('wp_cache_incr_group')) {
+    function wp_cache_incr_group(string $group, int $offset = 1): void
+    {
+        Cache\ObjectCache::incrGroup($group, $offset);
+    }
+}
+
+if (! function_exists('wp_cache_flush')) {
+    function wp_cache_flush(): bool
+    {
+        return Cache\ObjectCache::flush();
+    }
+}
+
+// ── HTTP ──────────────────────────────────────────────────────────────────────
+
+if (! function_exists('wp_remote_get')) {
+    function wp_remote_get(string $url, array $args = []): array|WPError
+    {
+        return Http\Http::get($url, $args);
+    }
+}
+
+if (! function_exists('wp_remote_post')) {
+    function wp_remote_post(string $url, array $args = []): array|WPError
+    {
+        return Http\Http::post($url, $args);
+    }
+}
+
+if (! function_exists('wp_remote_retrieve_body')) {
+    function wp_remote_retrieve_body(array|WPError $response): string
+    {
+        if (is_wp_error($response) || ! isset($response['body'])) {
+            return '';
+        }
+
+        return (string) $response['body'];
+    }
+}
+
+if (! function_exists('wp_remote_retrieve_response_code')) {
+    function wp_remote_retrieve_response_code(array|WPError $response): int|string
+    {
+        if (is_wp_error($response)) {
+            return '';
+        }
+
+        return (int) ($response['response']['code'] ?? 0);
+    }
+}
+
+if (! function_exists('wp_remote_retrieve_response_message')) {
+    function wp_remote_retrieve_response_message(array|WPError $response): string
+    {
+        if (is_wp_error($response)) {
+            return '';
+        }
+
+        return (string) ($response['response']['message'] ?? '');
+    }
+}
+
+if (! function_exists('wp_remote_retrieve_headers')) {
+    function wp_remote_retrieve_headers(array|WPError $response): array
+    {
+        if (is_wp_error($response)) {
+            return [];
+        }
+
+        return (array) ($response['headers'] ?? []);
+    }
+}
+
+// ── Chuẩn hoá ────────────────────────────────────────────────────────────────
+
+if (! function_exists('sanitize_title')) {
+    function sanitize_title(string $title, string $fallbackTitle = '', string $context = 'save'): string
+    {
+        $title = strip_tags($title);
+        $title = html_entity_decode($title, ENT_QUOTES, 'UTF-8');
+        $title = Text::stripAccents($title);
+        $title = strtolower($title);
+
+        // Bỏ ký tự bị bỏ trong slug của WordPress.
+        $title = preg_replace('/[^a-z0-9\s\-_]/', '', $title) ?? '';
+        $title = preg_replace('/[\s_]+/', '-', $title) ?? '';
+        $title = preg_replace('/-+/', '-', $title) ?? '';
+
+        $title = trim($title, '-');
+
+        if ($title === '' && $fallbackTitle !== '') {
+            return sanitize_title($fallbackTitle);
+        }
+
+        return $title;
+    }
+}
+
+
